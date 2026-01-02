@@ -272,7 +272,7 @@ class G5CIAGUI:
         self.gradient_color2 = (255, 0, 255)  # Magenta
         
         ttk.Label(gradient_frame, text="Color 1:").grid(row=1, column=0, sticky=tk.W, pady=(10, 0))
-        self.color1_button = tk.Button(gradient_frame, text="■", width=3,
+        self.color1_button = tk.Button(gradient_frame, text="#", width=3,
                                        bg=self._rgb_to_hex(self.gradient_color1),
                                        command=lambda: self._pick_gradient_color(1))
         self.color1_button.grid(row=1, column=1, sticky=tk.W, padx=5, pady=(10, 0))
@@ -280,7 +280,7 @@ class G5CIAGUI:
         self.color1_label.grid(row=1, column=2, sticky=tk.W, pady=(10, 0))
         
         ttk.Label(gradient_frame, text="Color 2:").grid(row=2, column=0, sticky=tk.W, pady=(5, 0))
-        self.color2_button = tk.Button(gradient_frame, text="■", width=3,
+        self.color2_button = tk.Button(gradient_frame, text="#", width=3,
                                        bg=self._rgb_to_hex(self.gradient_color2),
                                        command=lambda: self._pick_gradient_color(2))
         self.color2_button.grid(row=2, column=1, sticky=tk.W, padx=5, pady=(5, 0))

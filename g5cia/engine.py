@@ -117,7 +117,7 @@ class PatchEngine:
             log.warning("\n" + "="*70)
             log.warning("PREFLIGHT WARNINGS:")
             for warning in self.stats.warnings:
-                log.warning(f"  • {warning}")
+                log.warning(f"  - {warning}")
             log.warning("="*70 + "\n")
         
         # Hard fail on critical issues
@@ -299,7 +299,7 @@ class PatchEngine:
         if self.stats.warnings:
             print(f"\nWarnings: {len(self.stats.warnings)}")
             for warning in self.stats.warnings[:5]:  # Show first 5
-                print(f"  • {warning}")
+                print(f"  - {warning}")
         
         print("="*70 + "\n")
         
