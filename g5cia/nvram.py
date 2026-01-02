@@ -95,7 +95,7 @@ class NVRAMAccess:
                 return None
             
             # Convert name to wide string
-            var_name = name + '\x00'
+            var_name = name
             
             # Parse GUID
             guid_bytes = self._parse_guid(guid)
@@ -138,7 +138,7 @@ class NVRAMAccess:
                 log.error("Failed to enable SeSystemEnvironmentPrivilege")
                 return False
             
-            var_name = name + '\x00'
+            var_name = name
             
             kernel32 = ctypes.windll.kernel32
             result = kernel32.SetFirmwareEnvironmentVariableW(
