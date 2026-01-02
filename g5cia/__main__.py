@@ -62,9 +62,39 @@ def cmd_nvram_restore(args) -> int:
 
 def cmd_nvram_unlock(args) -> int:
     """Unlock via NVRAM (instant, no flash)."""
-    logging.info("NVRAM unlock not yet implemented")
-    logging.info("This would modify Setup variable to unlock CFG/OC locks")
-    return 1
+    from .runtime.nvram_tool import NVRAMUnlocker
+    
+    unlocker = NVRAMUnlocker()
+    
+    dry = getattr(args, 'dry', False)
+    
+    if dry:
+        logging.info("Running in DRY RUN mode - no changes will be made")
+    
+    logging.info("Unlocking BIOS settings via NVRAM...")
+    results = unlocker.nv_unlock(dry=dry)
+    
+    # Print results
+    print("\n" + "="*70)
+    print("NVRAM UNLOCK RESULTS")
+    print("="*70)
+    
+    success_count = 0
+    for setting_name, success, message in results:
+        status = "✓" if success else "✗"
+        print(f"{status} {setting_name:25s} {message}")
+        if success:
+            success_count += 1
+    
+    print("="*70)
+    print(f"Successful: {success_count}/{len(results)}")
+    print("="*70 + "\n")
+    
+    if not dry:
+        print("⚠️  IMPORTANT: Reboot for changes to take effect")
+        print("    To restore: CMOS clear or use --nv-restore")
+    
+    return 0 if success_count > 0 else 1
 
 
 def cmd_nvram_apply(args) -> int:
