@@ -167,7 +167,6 @@ class NVRAMAccess:
             TOKEN_QUERY = 0x0008
             SE_PRIVILEGE_ENABLED = 0x00000002
             ERROR_NOT_ALL_ASSIGNED = 1300
-            INVALID_HANDLE_VALUE = -1
             
             # Define LUID structure
             class LUID(ctypes.Structure):
@@ -198,7 +197,7 @@ class NVRAMAccess:
             process_handle = kernel32.GetCurrentProcess()
             
             # Open process token
-            token_handle = wintypes.HANDLE(INVALID_HANDLE_VALUE)
+            token_handle = wintypes.HANDLE()
             try:
                 if not advapi32.OpenProcessToken(
                     process_handle,
@@ -239,7 +238,9 @@ class NVRAMAccess:
                     log.error(f"Failed to adjust token privileges (error {error_code})")
                     return False
                 
-                # Check for ERROR_NOT_ALL_ASSIGNED
+                # Check for ERROR_NOT_ALL_ASSIGNED even when AdjustTokenPrivileges succeeds
+                # This is required by Windows API - the function returns TRUE but sets this error
+                # when the token doesn't have the privilege
                 error = kernel32.GetLastError()
                 if error == ERROR_NOT_ALL_ASSIGNED:
                     log.error("Token does not hold SeSystemEnvironmentPrivilege")
@@ -250,7 +251,8 @@ class NVRAMAccess:
             
             finally:
                 # Close token handle if it was successfully opened
-                if token_handle.value and token_handle.value != INVALID_HANDLE_VALUE:
+                # Token handles use NULL (0) for invalid, not INVALID_HANDLE_VALUE
+                if token_handle.value:
                     kernel32.CloseHandle(token_handle)
         
         except Exception as e:
