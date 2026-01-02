@@ -101,7 +101,16 @@ class NVRAMAccess:
             guid_bytes = self._parse_guid(guid)
             
             # Call GetFirmwareEnvironmentVariableW
-            kernel32 = ctypes.windll.kernel32
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            
+            # Define GetFirmwareEnvironmentVariableW
+            kernel32.GetFirmwareEnvironmentVariableW.restype = wintypes.DWORD
+            kernel32.GetFirmwareEnvironmentVariableW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.LPCWSTR,
+                ctypes.c_void_p,
+                wintypes.DWORD
+            ]
             
             # First call to get size
             size = kernel32.GetFirmwareEnvironmentVariableW(
@@ -133,6 +142,7 @@ class NVRAMAccess:
         """Write EFI variable on Windows."""
         try:
             import ctypes
+            from ctypes import wintypes
             
             if not self._enable_privilege():
                 log.error("Failed to enable SeSystemEnvironmentPrivilege")
@@ -140,7 +150,17 @@ class NVRAMAccess:
             
             var_name = name
             
-            kernel32 = ctypes.windll.kernel32
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            
+            # Define SetFirmwareEnvironmentVariableW
+            kernel32.SetFirmwareEnvironmentVariableW.restype = wintypes.BOOL
+            kernel32.SetFirmwareEnvironmentVariableW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.LPCWSTR,
+                ctypes.c_void_p,
+                wintypes.DWORD
+            ]
+            
             result = kernel32.SetFirmwareEnvironmentVariableW(
                 var_name, guid, data, len(data)
             )
