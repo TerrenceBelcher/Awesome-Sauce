@@ -76,8 +76,9 @@ def encode_voltage_offset(mv: int) -> bytes:
     """
     # Convert mV to raw units (1/1024V)
     raw = int(mv * 1.024)
-    # Pack as signed 16-bit
-    return struct.pack('<h', raw & 0xFFFF)
+    # Pack as signed 16-bit (clamp to valid range)
+    raw = max(-32768, min(32767, raw))
+    return struct.pack('<h', raw)
 
 
 def decode_voltage_offset(data: bytes) -> int:
