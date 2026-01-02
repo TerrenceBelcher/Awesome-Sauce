@@ -27,7 +27,7 @@ DELL_G5_5090 = PlatformInfo(
     vrm_max_safe=120,   # Absolute maximum
     
     # Static offsets from existing offset map
-    static_offsets={(k: (v[0], v[1])) for k, v in G5_5090_OFFSETS.items()},
+    static_offsets={k: (v[0], v[1]) for k, v in G5_5090_OFFSETS.items()},
     
     # Known BIOS versions
     bios_versions=[
