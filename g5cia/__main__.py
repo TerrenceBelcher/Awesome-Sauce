@@ -258,6 +258,38 @@ def cmd_patch_bios(args) -> int:
     
     logging.info(f"\n✓ Success! Modded BIOS saved to: {output_path}\n")
     
+    # Flash if requested
+    if args.flash:
+        from .flash.flasher import Flasher
+        
+        logging.info("Initiating flash operation...")
+        
+        # Create flasher
+        flash_tool = getattr(args, 'flash_tool', None)
+        flasher = Flasher(tool_name=flash_tool)
+        
+        if not flasher.is_available():
+            logging.error("No flash tool available - use --flash-detect to check")
+            return 1
+        
+        # Create backup if requested
+        if args.flash_backup:
+            logging.info(f"Creating backup to {args.flash_backup}...")
+            if not flasher.backup(Path(args.flash_backup)):
+                logging.error("Backup failed - aborting flash")
+                return 1
+        
+        # Flash the modded BIOS
+        modded_data = Path(output_path).read_bytes()
+        
+        if flasher.flash(modded_data, verify=True):
+            logging.info("✓ Flash operation completed successfully!")
+            logging.info("⚠️  Reboot your system to apply changes")
+            return 0
+        else:
+            logging.error("✗ Flash operation failed")
+            return 1
+    
     return 0
 
 
@@ -334,6 +366,13 @@ Examples:
     adv_group.add_argument('--uc-path', metavar='FILE', help='Microcode update file')
     adv_group.add_argument('--uc-cpuid', metavar='HEX', help='Expected CPUID for microcode')
     
+    # Flash operations
+    flash_group = parser.add_argument_group('Flash operations')
+    flash_group.add_argument('--flash-detect', action='store_true', help='Detect available flash tools')
+    flash_group.add_argument('--flash', action='store_true', help='Flash modified BIOS directly')
+    flash_group.add_argument('--flash-tool', metavar='TOOL', choices=['fpt', 'ch341a', 'afu'], help='Force specific flash tool')
+    flash_group.add_argument('--flash-backup', metavar='FILE', help='Create BIOS backup before flashing')
+    
     # Modes
     mode_group = parser.add_argument_group('Modes')
     mode_group.add_argument('--dry', action='store_true', help='Dry run (no output file)')
@@ -345,7 +384,14 @@ Examples:
     # Setup logging
     setup_logging(args.verbose)
     
-    # Handle NVRAM operations first
+    # Handle flash detection first
+    if args.flash_detect:
+        from .flash.detector import FlashDetector
+        detector = FlashDetector()
+        detector.print_report()
+        return 0
+    
+    # Handle NVRAM operations
     if args.nv_report:
         return cmd_nvram_report(args)
     
