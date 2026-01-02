@@ -157,11 +157,106 @@ class NVRAMAccess:
             import ctypes
             from ctypes import wintypes
             
-            # This is a simplified version - full implementation would use
-            # OpenProcessToken, LookupPrivilegeValue, AdjustTokenPrivileges
-            # For now, just return True if admin
-            return ctypes.windll.shell32.IsUserAnAdmin() != 0
-        except:
+            # Check if user is admin first
+            if ctypes.windll.shell32.IsUserAnAdmin() == 0:
+                log.error("Not running as Administrator")
+                return False
+            
+            # Windows API constants
+            TOKEN_ADJUST_PRIVILEGES = 0x0020
+            TOKEN_QUERY = 0x0008
+            SE_PRIVILEGE_ENABLED = 0x00000002
+            ERROR_NOT_ALL_ASSIGNED = 1300
+            
+            # Define LUID structure
+            class LUID(ctypes.Structure):
+                _fields_ = [
+                    ("LowPart", wintypes.DWORD),
+                    ("HighPart", wintypes.LONG),
+                ]
+            
+            # Define LUID_AND_ATTRIBUTES structure
+            class LUID_AND_ATTRIBUTES(ctypes.Structure):
+                _fields_ = [
+                    ("Luid", LUID),
+                    ("Attributes", wintypes.DWORD),
+                ]
+            
+            # Define TOKEN_PRIVILEGES structure
+            class TOKEN_PRIVILEGES(ctypes.Structure):
+                _fields_ = [
+                    ("PrivilegeCount", wintypes.DWORD),
+                    ("Privileges", LUID_AND_ATTRIBUTES * 1),
+                ]
+            
+            # Get API functions
+            kernel32 = ctypes.windll.kernel32
+            advapi32 = ctypes.windll.advapi32
+            
+            # Get current process pseudo-handle
+            process_handle = kernel32.GetCurrentProcess()
+            
+            # Open process token
+            token_handle = wintypes.HANDLE(0)
+            try:
+                if not advapi32.OpenProcessToken(
+                    process_handle,
+                    TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+                    ctypes.byref(token_handle)
+                ):
+                    error_code = kernel32.GetLastError()
+                    log.error(f"Failed to open process token (error {error_code})")
+                    return False
+                
+                # Lookup privilege LUID
+                luid = LUID()
+                if not advapi32.LookupPrivilegeValueW(
+                    None,
+                    "SeSystemEnvironmentPrivilege",
+                    ctypes.byref(luid)
+                ):
+                    error_code = kernel32.GetLastError()
+                    log.error(f"Failed to lookup privilege value (error {error_code})")
+                    return False
+                
+                # Prepare TOKEN_PRIVILEGES structure
+                tp = TOKEN_PRIVILEGES()
+                tp.PrivilegeCount = 1
+                tp.Privileges[0].Luid = luid
+                tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED
+                
+                # Enable privilege
+                if not advapi32.AdjustTokenPrivileges(
+                    token_handle,
+                    False,
+                    ctypes.byref(tp),
+                    ctypes.sizeof(tp),
+                    None,
+                    None
+                ):
+                    error_code = kernel32.GetLastError()
+                    log.error(f"Failed to adjust token privileges (error {error_code})")
+                    return False
+                
+                # Check for ERROR_NOT_ALL_ASSIGNED even when AdjustTokenPrivileges succeeds
+                # This is required by Windows API - the function returns TRUE but sets this error
+                # when the token doesn't have the privilege
+                error = kernel32.GetLastError()
+                if error == ERROR_NOT_ALL_ASSIGNED:
+                    log.error("Token does not hold SeSystemEnvironmentPrivilege")
+                    return False
+                
+                log.debug("Successfully enabled SeSystemEnvironmentPrivilege")
+                return True
+            
+            finally:
+                # Close token handle if it was successfully opened
+                # Token handles use NULL (0) for invalid, not INVALID_HANDLE_VALUE
+                if token_handle.value:
+                    kernel32.CloseHandle(token_handle)
+        
+        except Exception as e:
+            log.error(f"Exception enabling privilege: {e}")
             return False
     
     def _read_linux(self, name: str, guid: str) -> Optional[bytes]:
