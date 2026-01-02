@@ -45,7 +45,7 @@ Production-grade, modular BIOS/UEFI patching toolkit for Dell desktop systems wi
 ## Installation
 
 ```bash
-git clone https://github.com/BiosLord/Awesome-Sauce.git
+git clone https://github.com/TerrenceBelcher/Awesome-Sauce.git
 cd Awesome-Sauce
 # No dependencies required for core functionality!
 ```
