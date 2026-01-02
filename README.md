@@ -1,6 +1,6 @@
-# G5 CIA Ultimate - Dell G5 5090 BIOS Modding Toolkit
+# G5 CIA Ultimate v2.0 - Dell BIOS Modding Toolkit
 
-Production-grade, modular BIOS/UEFI patching toolkit for Dell G5 5090 desktop systems.
+Production-grade, modular BIOS/UEFI patching toolkit for Dell desktop systems with advanced features and multi-platform support.
 
 ## ⚠️ WARNING
 
@@ -14,26 +14,33 @@ Production-grade, modular BIOS/UEFI patching toolkit for Dell G5 5090 desktop sy
 
 ## Features
 
-### 🔧 Core Capabilities
+### 🔧 Core Capabilities v2.0
 
+- **Dynamic IFR Parsing** - Automatically discover BIOS offsets (no static offset dependency)
 - **NVRAM Runtime Control** - Modify settings without reflashing (Windows/Linux)
+- **Direct Flash Integration** - Flash BIOS directly with FPT, CH341A, or AFU
+- **Multi-Platform Support** - Dell G5 5090/5000, XPS 8940, Alienware Aurora R10
 - **Firmware Parsing** - Parse FV/FFS structure, decompress LZMA sections
 - **Security Analysis** - Detect Boot Guard, ME, PFAT with hard-fail on dangerous conditions
 - **Smart Patching** - Power limits, voltage offsets, unlock bits, ME disable (HAP)
 - **ReBAR Injection** - Automated Resizable BAR driver injection
 - **Logo Management** - Extract/replace/generate boot logos
-- **Microcode Updates** - Inject updated microcode with validation
+- **Option ROM Management** - Extract, update, and replace VBIOS/LAN/RAID ROMs
+- **ACPI Support** - Extract and patch DSDT/SSDT tables
 - **Preset Configurations** - Stock, balanced, gaming, max, silent, undervolt, bare
+- **Cross-Platform GUI** - Modern tkinter-based graphical interface
 
-### 🛡️ Safety Features
+### 🛡️ Safety Features v2.0
 
 - Boot Guard detection with hard-fail on verified boot
 - PFAT/FD lock detection
-- VRM limit warnings (95W PL1, 115W PL2 for G5 5090)
+- Platform-specific VRM limit validation
+- Dynamic offset discovery with static fallback
 - Overlap detection for patches
 - Atomic save with verification
-- Read-back verify for critical writes
+- Read-back verify for critical writes and flash operations
 - Detailed logging with patch audit trail
+- Auto-backup creation before NVRAM/flash operations
 
 ## Installation
 
@@ -44,6 +51,21 @@ cd Awesome-Sauce
 ```
 
 ## Quick Start
+
+### GUI Mode (New in v2.0!)
+
+```bash
+# Launch graphical interface
+python -m g5cia --gui
+```
+
+The GUI provides:
+- Easy file selection with browse dialogs
+- Visual preset selection and configuration
+- Real-time log output
+- One-click NVRAM operations
+- Integrated flash tool detection
+- Dry run testing
 
 ### NVRAM Operations (Instant, No Flash)
 
@@ -57,8 +79,11 @@ python -m g5cia --nv-backup setup_backup.bin
 # Restore Setup
 python -m g5cia --nv-restore setup_backup.bin
 
-# Unlock CFG/OC locks (not yet implemented)
+# Unlock CFG/OC locks via NVRAM (NEW v2.0!)
 python -m g5cia --nv-unlock
+
+# Dry run unlock (test without changes)
+python -m g5cia --nv-unlock --dry
 ```
 
 ### BIOS Patching
@@ -105,6 +130,24 @@ python -m g5cia bios.bin --logo-color black -o MOD.bin
 python -m g5cia bios.bin --logo-gradient fire -o MOD.bin
 ```
 
+### Flash Operations (New in v2.0!)
+
+```bash
+# Detect available flash tools
+python -m g5cia --flash-detect
+
+# Patch and flash in one step (with backup)
+python -m g5cia bios.bin --preset gaming -o MOD.bin --flash --flash-backup backup.bin
+
+# Flash with specific tool
+python -m g5cia bios.bin --preset max -o MOD.bin --flash --flash-tool fpt
+```
+
+Supported flash tools:
+- **Intel FPT** (Flash Programming Tool) - In-system flashing
+- **AMI AFU** (BIOS Flash Utility) - Motherboard manufacturer tool
+- **CH341A** - External USB SPI programmer (via flashrom)
+
 ### Testing & Reports
 
 ```bash
@@ -117,6 +160,34 @@ python -m g5cia bios.bin --preset gaming -v --rpt -o MOD.bin
 # Force mode (bypass safety checks - DANGEROUS!)
 python -m g5cia bios.bin --preset max --force -o MOD.bin
 ```
+
+## Supported Platforms (New in v2.0!)
+
+### Dell G5 5090
+- **Chipset:** Intel B365
+- **CPUs:** 9th Gen Intel (i3-9100 to i9-9900)
+- **VRM Limits:** PL1 95W, PL2 115W
+- **Status:** ✅ Fully tested and supported
+
+### Dell G5 5000
+- **Chipset:** Intel B560/H570
+- **CPUs:** 11th Gen Intel (Rocket Lake)
+- **VRM Limits:** PL1 105W, PL2 125W
+- **Status:** ⚠️ Profile created, testing recommended
+
+### Dell XPS 8940
+- **Chipset:** Intel Z490/Z590
+- **CPUs:** 10th/11th Gen Intel (K-series)
+- **VRM Limits:** PL1 125W, PL2 150W
+- **Status:** ⚠️ Profile created, testing recommended
+
+### Alienware Aurora R10
+- **Chipset:** AMD X570
+- **CPUs:** Ryzen 3000/5000 series
+- **VRM Limits:** PL1 140W, PL2 170W
+- **Status:** ⚠️ AMD platform, experimental
+
+The tool automatically detects platforms from BIOS signatures and validates VRM limits accordingly.
 
 ## Configuration Presets
 
@@ -183,11 +254,30 @@ python -m g5cia bios.bin --preset max --force -o MOD.bin
 - `--uc-path <file>` - Inject microcode update
 - `--uc-cpuid <hex>` - Expected CPUID
 
+### Flash Operations (v2.0)
+- `--flash-detect` - Detect available flash tools
+- `--flash` - Flash modified BIOS directly
+- `--flash-tool <tool>` - Force specific tool (fpt, ch341a, afu)
+- `--flash-backup <file>` - Create backup before flashing
+
 ### Modes
 - `--dry` - Dry run (no output)
 - `--force` - Bypass safety checks (DANGEROUS!)
 - `--rpt` - Print detailed report
 - `-v, --verbose` - Verbose logging
+- `--gui` - Launch graphical interface (v2.0)
+
+## Dynamic Offset Discovery (New in v2.0!)
+
+The v2.0 release introduces **IFR (Internal Forms Representation) parsing** for dynamic offset discovery:
+
+- **Automatic offset detection** - No more broken static offsets after BIOS updates
+- **Human-readable names** - Correlates offsets to setting names from BIOS strings
+- **Fallback safety** - Uses static offsets when IFR parsing fails
+- **Caching** - Performance optimization for repeated operations
+- **Multi-BIOS support** - Works across different BIOS versions
+
+This eliminates the primary weakness of v1.0 where BIOS updates would break static offset maps.
 
 ## Dell G5 5090 Offset Map
 
@@ -232,12 +322,52 @@ The toolkit includes a complete offset map for the Dell G5 5090 Setup variable:
 - TPM, PTT (0x104-0x105)
 - ME Enable, HAP (0x106-0x107)
 
-## Architecture
+## Architecture v2.0
 
 ```
 g5cia/
-├── __init__.py          # Package metadata
-├── __main__.py          # CLI entry point
+├── __init__.py           # Package metadata
+├── __main__.py           # CLI entry point
+├── firmware/             # NEW: Firmware parsing modules
+│   ├── __init__.py
+│   └── ifr.py           # IFR parser for dynamic offsets
+├── runtime/              # NEW: Runtime NVRAM operations
+│   ├── __init__.py
+│   └── nvram_tool.py    # NVRAM unlock tool
+├── flash/                # NEW: Flash tool integration
+│   ├── __init__.py
+│   ├── fpt.py           # Intel FPT wrapper
+│   ├── ch341a.py        # CH341A USB programmer
+│   ├── afu.py           # AMI AFU wrapper
+│   ├── flasher.py       # Unified flash interface
+│   └── detector.py      # Auto-detection
+├── platforms/            # NEW: Multi-platform support
+│   ├── __init__.py
+│   ├── hal.py           # Hardware abstraction layer
+│   ├── dell_g5_5090.py  # Platform profiles
+│   ├── dell_g5_5000.py
+│   ├── dell_xps_8940.py
+│   └── alienware.py
+├── patching/             # NEW: Advanced patching
+│   ├── __init__.py
+│   ├── optionrom.py     # Option ROM management
+│   └── acpi.py          # ACPI table patching
+├── gui/                  # NEW: Graphical interface
+│   ├── __init__.py
+│   ├── app.py           # Main GUI application
+│   └── themes.py        # Theme support
+├── nvram.py              # Cross-platform NVRAM access
+├── image.py              # Firmware volume/file parsing
+├── security.py           # Boot Guard, ME, PFAT detection
+├── patcher.py            # Byte patching with validation
+├── rebar.py              # ReBAR driver injection
+├── logo.py               # Logo extraction/generation
+├── config.py             # Dataclass configs & presets
+├── engine.py             # Main orchestration
+├── offsets.py            # Dell G5 5090 offset map (static fallback)
+├── utils.py              # Compression, checksums, encoding
+└── hw.py                 # Hardware detection
+```
 ├── nvram.py             # Cross-platform NVRAM access
 ├── image.py             # Firmware volume/file parsing
 ├── security.py          # Boot Guard, ME, PFAT detection
@@ -247,42 +377,61 @@ g5cia/
 ├── config.py            # Dataclass configs & presets
 ├── engine.py            # Main orchestration
 ├── offsets.py           # Dell G5 5090 offset map
-├── utils.py             # Compression, checksums, encoding
-└── hw.py                # Hardware detection
+├── utils.py              # Compression, checksums, encoding
+└── hw.py                 # Hardware detection
 ```
 
 ## Safety Workflow
 
 1. **Load** - Parse firmware structure
-2. **Preflight** - Detect security features
+2. **IFR Parse** - Dynamic offset discovery with static fallback (NEW v2.0)
+3. **Platform Detect** - Identify system and VRM limits (NEW v2.0)
+4. **Preflight** - Detect security features
    - Boot Guard Verified → HARD FAIL
    - PFAT → HARD FAIL
    - Boot Guard Measured → Warning
    - FD Lock → Warning
-3. **Patch** - Apply configuration with overlap detection
-4. **Verify** - Recalculate checksums, validate structure
-5. **Save** - Atomic write with parse verification
+   - VRM Limit Validation (NEW v2.0)
+5. **Patch** - Apply configuration with overlap detection
+6. **Verify** - Recalculate checksums, validate structure
+7. **Save** - Atomic write with parse verification
+8. **Flash** (Optional) - Direct flash with verification (NEW v2.0)
 
-## Flashing
+## Flashing v2.0
 
-After creating a modded BIOS:
+After creating a modded BIOS, you have multiple options:
 
-### Method 1: Dell BIOS Update (Safest)
+### Method 1: Integrated Flash (NEW - Easiest!)
+```bash
+# Auto-detect and flash
+python -m g5cia bios.bin --preset gaming -o MOD.bin --flash --flash-backup backup.bin
+
+# Use GUI for guided flashing
+python -m g5cia --gui
+```
+
+### Method 2: Intel FPT (In-System)
 1. Rename `MOD.bin` to match Dell naming (e.g., `G5_5090_1.2.3.exe`)
-2. Run Dell BIOS updater
-3. **Only works if Boot Guard is NOT enforced**
+```bash
+fptw64 -bios -f MOD.bin
+```
 
-### Method 2: External Programmer (Universal)
-1. Get CH341A or equivalent SPI programmer
+### Method 3: AMI AFU (Motherboard-Specific)
+```bash
+afuwin64 MOD.bin /P /N
+```
+
+### Method 4: CH341A Programmer (External - Universal)
+1. Get CH341A USB SPI programmer
 2. Identify BIOS chip (usually 128Mbit Winbond)
-3. Read current BIOS for backup
-4. Write `MOD.bin`
-5. **Works even with Boot Guard** (before power-on)
+3. Use flashrom: `flashrom -p ch341a_spi -w MOD.bin`
+4. **Works even with Boot Guard** (before power-on)
 
-### Method 3: NVRAM (No Flash)
-1. `python -m g5cia --nv-apply gaming`
-2. Changes settings only, no firmware modification
-3. Reset by CMOS clear
+### Method 5: NVRAM Only (No Flash)
+```bash
+python -m g5cia --nv-unlock
+```
+Changes settings only via NVRAM - no firmware modification. Reset by CMOS clear.
 
 ## Recovery
 
@@ -336,11 +485,31 @@ If you have Boot Guard verified, your only option is external programmer **befor
 
 ## Contributing
 
-This is a production tool. Contributions welcome:
-- Add support for other Dell models
-- Improve IFR parsing for dynamic offsets
-- Add more presets
-- Test on different G5 5090 BIOS versions
+This is a production-grade tool. Contributions welcome:
+- Add support for other Dell/Alienware models
+- Test and refine platform profiles (G5 5000, XPS 8940, Aurora R10)
+- Enhance IFR parser for better compatibility
+- Add more flash tool integrations
+- Test on different BIOS versions
+- Improve GUI with additional features
+- Add Option ROM and ACPI use cases
+
+## What's New in v2.0
+
+### Major Features
+✅ **Dynamic IFR Parsing** - No more broken offsets after BIOS updates
+✅ **NVRAM Unlock** - Instant unlock via `--nv-unlock` without reflashing
+✅ **Flash Integration** - Direct flashing with FPT, CH341A, and AFU
+✅ **Multi-Platform** - Support for 4 Dell/Alienware systems
+✅ **GUI** - Cross-platform graphical interface with tkinter
+✅ **Option ROM** - Extract and update VBIOS/LAN/RAID ROMs
+✅ **ACPI Support** - Extract and patch DSDT/SSDT tables
+
+### Breaking Changes from v1.0
+- Offset discovery is now dynamic by default (static offsets are fallback)
+- `--nv-unlock` is now functional (was documented but not implemented in v1.0)
+- New `--flash` and `--flash-detect` arguments
+- New `--gui` argument for graphical mode
 
 ## Credits
 

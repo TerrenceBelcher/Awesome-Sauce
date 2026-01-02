@@ -62,9 +62,39 @@ def cmd_nvram_restore(args) -> int:
 
 def cmd_nvram_unlock(args) -> int:
     """Unlock via NVRAM (instant, no flash)."""
-    logging.info("NVRAM unlock not yet implemented")
-    logging.info("This would modify Setup variable to unlock CFG/OC locks")
-    return 1
+    from .runtime.nvram_tool import NVRAMUnlocker
+    
+    unlocker = NVRAMUnlocker()
+    
+    dry = getattr(args, 'dry', False)
+    
+    if dry:
+        logging.info("Running in DRY RUN mode - no changes will be made")
+    
+    logging.info("Unlocking BIOS settings via NVRAM...")
+    results = unlocker.nv_unlock(dry=dry)
+    
+    # Print results
+    print("\n" + "="*70)
+    print("NVRAM UNLOCK RESULTS")
+    print("="*70)
+    
+    success_count = 0
+    for setting_name, success, message in results:
+        status = "✓" if success else "✗"
+        print(f"{status} {setting_name:25s} {message}")
+        if success:
+            success_count += 1
+    
+    print("="*70)
+    print(f"Successful: {success_count}/{len(results)}")
+    print("="*70 + "\n")
+    
+    if not dry:
+        print("⚠️  IMPORTANT: Reboot for changes to take effect")
+        print("    To restore: CMOS clear or use --nv-restore")
+    
+    return 0 if success_count > 0 else 1
 
 
 def cmd_nvram_apply(args) -> int:
@@ -228,6 +258,38 @@ def cmd_patch_bios(args) -> int:
     
     logging.info(f"\n✓ Success! Modded BIOS saved to: {output_path}\n")
     
+    # Flash if requested
+    if args.flash:
+        from .flash.flasher import Flasher
+        
+        logging.info("Initiating flash operation...")
+        
+        # Create flasher
+        flash_tool = getattr(args, 'flash_tool', None)
+        flasher = Flasher(tool_name=flash_tool)
+        
+        if not flasher.is_available():
+            logging.error("No flash tool available - use --flash-detect to check")
+            return 1
+        
+        # Create backup if requested
+        if args.flash_backup:
+            logging.info(f"Creating backup to {args.flash_backup}...")
+            if not flasher.backup(Path(args.flash_backup)):
+                logging.error("Backup failed - aborting flash")
+                return 1
+        
+        # Flash the modded BIOS
+        modded_data = Path(output_path).read_bytes()
+        
+        if flasher.flash(modded_data, verify=True):
+            logging.info("✓ Flash operation completed successfully!")
+            logging.info("⚠️  Reboot your system to apply changes")
+            return 0
+        else:
+            logging.error("✗ Flash operation failed")
+            return 1
+    
     return 0
 
 
@@ -304,18 +366,41 @@ Examples:
     adv_group.add_argument('--uc-path', metavar='FILE', help='Microcode update file')
     adv_group.add_argument('--uc-cpuid', metavar='HEX', help='Expected CPUID for microcode')
     
+    # Flash operations
+    flash_group = parser.add_argument_group('Flash operations')
+    flash_group.add_argument('--flash-detect', action='store_true', help='Detect available flash tools')
+    flash_group.add_argument('--flash', action='store_true', help='Flash modified BIOS directly')
+    flash_group.add_argument('--flash-tool', metavar='TOOL', choices=['fpt', 'ch341a', 'afu'], help='Force specific flash tool')
+    flash_group.add_argument('--flash-backup', metavar='FILE', help='Create BIOS backup before flashing')
+    
     # Modes
     mode_group = parser.add_argument_group('Modes')
     mode_group.add_argument('--dry', action='store_true', help='Dry run (no output file)')
     mode_group.add_argument('--force', action='store_true', help='Force operation (bypass safety checks)')
     mode_group.add_argument('--rpt', action='store_true', help='Print detailed report')
+    mode_group.add_argument('--gui', action='store_true', help='Launch graphical interface')
+    
     
     args = parser.parse_args()
     
     # Setup logging
     setup_logging(args.verbose)
     
-    # Handle NVRAM operations first
+    # Handle GUI mode
+    if args.gui:
+        from .gui.app import G5CIAGUI
+        app = G5CIAGUI()
+        app.run()
+        return 0
+    
+    # Handle flash detection first
+    if args.flash_detect:
+        from .flash.detector import FlashDetector
+        detector = FlashDetector()
+        detector.print_report()
+        return 0
+    
+    # Handle NVRAM operations
     if args.nv_report:
         return cmd_nvram_report(args)
     
