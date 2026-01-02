@@ -167,6 +167,7 @@ class NVRAMAccess:
             TOKEN_QUERY = 0x0008
             SE_PRIVILEGE_ENABLED = 0x00000002
             ERROR_NOT_ALL_ASSIGNED = 1300
+            INVALID_HANDLE_VALUE = -1
             
             # Define LUID structure
             class LUID(ctypes.Structure):
@@ -197,7 +198,7 @@ class NVRAMAccess:
             process_handle = kernel32.GetCurrentProcess()
             
             # Open process token
-            token_handle = wintypes.HANDLE(0)
+            token_handle = wintypes.HANDLE(INVALID_HANDLE_VALUE)
             try:
                 if not advapi32.OpenProcessToken(
                     process_handle,
@@ -248,8 +249,8 @@ class NVRAMAccess:
                 return True
             
             finally:
-                # Close token handle if it was opened
-                if token_handle.value:
+                # Close token handle if it was successfully opened
+                if token_handle.value and token_handle.value != INVALID_HANDLE_VALUE:
                     kernel32.CloseHandle(token_handle)
         
         except Exception as e:
