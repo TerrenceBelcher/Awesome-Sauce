@@ -157,11 +157,99 @@ class NVRAMAccess:
             import ctypes
             from ctypes import wintypes
             
-            # This is a simplified version - full implementation would use
-            # OpenProcessToken, LookupPrivilegeValue, AdjustTokenPrivileges
-            # For now, just return True if admin
-            return ctypes.windll.shell32.IsUserAnAdmin() != 0
-        except:
+            # Check if user is admin first
+            if ctypes.windll.shell32.IsUserAnAdmin() == 0:
+                log.error("Not running as Administrator")
+                return False
+            
+            # Windows API constants
+            TOKEN_ADJUST_PRIVILEGES = 0x0020
+            TOKEN_QUERY = 0x0008
+            SE_PRIVILEGE_ENABLED = 0x00000002
+            ERROR_NOT_ALL_ASSIGNED = 1300
+            
+            # Define LUID structure
+            class LUID(ctypes.Structure):
+                _fields_ = [
+                    ("LowPart", wintypes.DWORD),
+                    ("HighPart", wintypes.LONG),
+                ]
+            
+            # Define LUID_AND_ATTRIBUTES structure
+            class LUID_AND_ATTRIBUTES(ctypes.Structure):
+                _fields_ = [
+                    ("Luid", LUID),
+                    ("Attributes", wintypes.DWORD),
+                ]
+            
+            # Define TOKEN_PRIVILEGES structure
+            class TOKEN_PRIVILEGES(ctypes.Structure):
+                _fields_ = [
+                    ("PrivilegeCount", wintypes.DWORD),
+                    ("Privileges", LUID_AND_ATTRIBUTES * 1),
+                ]
+            
+            # Get API functions
+            kernel32 = ctypes.windll.kernel32
+            advapi32 = ctypes.windll.advapi32
+            
+            # Get current process pseudo-handle
+            process_handle = kernel32.GetCurrentProcess()
+            
+            # Open process token
+            token_handle = wintypes.HANDLE()
+            if not advapi32.OpenProcessToken(
+                process_handle,
+                TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+                ctypes.byref(token_handle)
+            ):
+                log.error("Failed to open process token")
+                return False
+            
+            try:
+                # Lookup privilege LUID
+                luid = LUID()
+                if not advapi32.LookupPrivilegeValueW(
+                    None,
+                    "SeSystemEnvironmentPrivilege",
+                    ctypes.byref(luid)
+                ):
+                    log.error("Failed to lookup privilege value")
+                    return False
+                
+                # Prepare TOKEN_PRIVILEGES structure
+                tp = TOKEN_PRIVILEGES()
+                tp.PrivilegeCount = 1
+                tp.Privileges[0].Luid = luid
+                tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED
+                
+                # Enable privilege
+                if not advapi32.AdjustTokenPrivileges(
+                    token_handle,
+                    False,
+                    ctypes.byref(tp),
+                    ctypes.sizeof(tp),
+                    None,
+                    None
+                ):
+                    log.error("Failed to adjust token privileges")
+                    return False
+                
+                # Check for ERROR_NOT_ALL_ASSIGNED
+                error = kernel32.GetLastError()
+                if error == ERROR_NOT_ALL_ASSIGNED:
+                    log.error("SeSystemEnvironmentPrivilege not available for this user")
+                    return False
+                
+                log.debug("Successfully enabled SeSystemEnvironmentPrivilege")
+                return True
+            
+            finally:
+                # Close token handle
+                kernel32.CloseHandle(token_handle)
+        
+        except Exception as e:
+            log.error(f"Exception enabling privilege: {e}")
             return False
     
     def _read_linux(self, name: str, guid: str) -> Optional[bytes]:
