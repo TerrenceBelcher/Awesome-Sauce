@@ -127,9 +127,9 @@ class PatchEngine:
             return False
         
         if not status.safe_to_flash and force:
-            log.warning("⚠️  FORCE MODE: Bypassing safety checks - YOU HAVE BEEN WARNED!")
+            log.warning("[WARN] FORCE MODE: Bypassing safety checks - YOU HAVE BEEN WARNED!")
         
-        log.info("✓ Preflight checks passed")
+        log.info("[OK] Preflight checks passed")
         return True
     
     def apply_config(self, config: BIOSConfig) -> bool:
@@ -154,13 +154,13 @@ class PatchEngine:
         # Power limits
         if config.pl1 is not None:
             if config.pl1 > 95:
-                log.warning(f"⚠️  PL1 {config.pl1}W exceeds Dell G5 5090 VRM spec (95W)")
+                log.warning(f"[WARN] PL1 {config.pl1}W exceeds Dell G5 5090 VRM spec (95W)")
             self.patcher.set_power_limit('Pl1', config.pl1)
             self.patcher.patch_setup_offset('Pl1En', 1)
         
         if config.pl2 is not None:
             if config.pl2 > 115:
-                log.warning(f"⚠️  PL2 {config.pl2}W exceeds Dell G5 5090 VRM spec (115W)")
+                log.warning(f"[WARN] PL2 {config.pl2}W exceeds Dell G5 5090 VRM spec (115W)")
             self.patcher.set_power_limit('Pl2', config.pl2)
             self.patcher.patch_setup_offset('Pl2En', 1)
         
@@ -220,7 +220,7 @@ class PatchEngine:
             self.patcher.set_hap_bit(True)
         
         self.stats.patches_applied = len(self.patcher.patches)
-        log.info(f"✓ Applied {self.stats.patches_applied} patches")
+        log.info(f"[OK] Applied {self.stats.patches_applied} patches")
         
         return True
     
@@ -280,7 +280,7 @@ class PatchEngine:
             # Direct save
             Path(output_path).write_bytes(self.data)
         
-        log.info(f"✓ Saved to {output_path} ({len(self.data)} bytes)")
+        log.info(f"[OK] Saved to {output_path} ({len(self.data)} bytes)")
         return True
     
     def print_summary(self) -> None:
@@ -294,7 +294,7 @@ class PatchEngine:
         print(f"Patches applied:  {self.stats.patches_applied}")
         print(f"Boot Guard:       {'Yes' if self.stats.boot_guard else 'No'}")
         print(f"ME region:        {'Found' if self.stats.me_found else 'Not found'}")
-        print(f"Safe to flash:    {'✓ Yes' if self.stats.safe_to_flash else '✗ NO - USE CAUTION'}")
+        print(f"Safe to flash:    {'[OK] Yes' if self.stats.safe_to_flash else '[FAIL] NO - USE CAUTION'}")
         
         if self.stats.warnings:
             print(f"\nWarnings: {len(self.stats.warnings)}")

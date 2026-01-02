@@ -3,6 +3,7 @@
 import logging
 import subprocess
 import shutil
+import tempfile
 from typing import Optional
 from pathlib import Path
 
@@ -83,7 +84,7 @@ class FPTFlasher:
             
             if result.returncode == 0:
                 if output_path.exists():
-                    log.info(f"✓ BIOS read successful: {output_path} ({output_path.stat().st_size} bytes)")
+                    log.info(f"[OK] BIOS read successful: {output_path} ({output_path.stat().st_size} bytes)")
                     return True
                 else:
                     log.error("FPT reported success but output file not found")
@@ -114,14 +115,14 @@ class FPTFlasher:
         
         try:
             # Write data to temporary file
-            temp_path = Path('/tmp/g5cia_fpt_temp.bin')
+            temp_path = Path(tempfile.gettempdir()) / 'g5cia_fpt_temp.bin'
             temp_path.write_bytes(data)
             
             # Command: fptw64 -bios -f input.bin
             cmd = [str(self.fpt_path), '-bios', '-f', str(temp_path)]
             
             log.info(f"Writing BIOS with FPT: {' '.join(cmd)}")
-            log.warning("⚠️  This will modify your BIOS - ensure you have a backup!")
+            log.warning("[WARN] This will modify your BIOS - ensure you have a backup!")
             
             result = subprocess.run(
                 cmd,
@@ -135,7 +136,7 @@ class FPTFlasher:
                 temp_path.unlink()
             
             if result.returncode == 0:
-                log.info("✓ BIOS write successful")
+                log.info("[OK] BIOS write successful")
                 return True
             else:
                 log.error(f"FPT write failed: {result.stderr}")
@@ -158,10 +159,10 @@ class FPTFlasher:
             return False
         
         try:
-            verify_path = Path('/tmp/g5cia_verify.bin')
+            verify_path = Path(tempfile.gettempdir()) / 'g5cia_verify.bin'
             
             if self.read_bios(verify_path):
-                log.info("✓ Verification read successful")
+                log.info("[OK] Verification read successful")
                 
                 # Cleanup
                 if verify_path.exists():

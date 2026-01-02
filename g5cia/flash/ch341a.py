@@ -4,6 +4,7 @@ import logging
 import subprocess
 import shutil
 import sys
+import tempfile
 from typing import Optional
 from pathlib import Path
 
@@ -108,7 +109,7 @@ class CH341AFlasher:
                 )
                 
                 if result.returncode == 0 and output_path.exists():
-                    log.info(f"✓ Chip read successful: {output_path} ({output_path.stat().st_size} bytes)")
+                    log.info(f"[OK] Chip read successful: {output_path} ({output_path.stat().st_size} bytes)")
                     return True
                 else:
                     log.error(f"Flashrom read failed: {result.stderr}")
@@ -127,7 +128,7 @@ class CH341AFlasher:
                 )
                 
                 if result.returncode == 0 and output_path.exists():
-                    log.info(f"✓ Chip read successful: {output_path}")
+                    log.info(f"[OK] Chip read successful: {output_path}")
                     return True
                 else:
                     log.error(f"ch341prog read failed: {result.stderr}")
@@ -162,7 +163,7 @@ class CH341AFlasher:
         
         try:
             # Write data to temporary file
-            temp_path = Path('/tmp/g5cia_ch341a_temp.bin')
+            temp_path = Path(tempfile.gettempdir()) / 'g5cia_ch341a_temp.bin'
             temp_path.write_bytes(data)
             
             if self.tool_type == 'flashrom':
@@ -175,7 +176,7 @@ class CH341AFlasher:
                     cmd.append('-v')
                 
                 log.info(f"Writing chip with flashrom: {' '.join(cmd)}")
-                log.warning("⚠️  This will overwrite your BIOS chip - ensure you have a backup!")
+                log.warning("[WARN] This will overwrite your BIOS chip - ensure you have a backup!")
                 
                 result = subprocess.run(
                     cmd,
@@ -189,7 +190,7 @@ class CH341AFlasher:
                     temp_path.unlink()
                 
                 if result.returncode == 0:
-                    log.info("✓ Chip write successful")
+                    log.info("[OK] Chip write successful")
                     return True
                 else:
                     log.error(f"Flashrom write failed: {result.stderr}")
@@ -199,7 +200,7 @@ class CH341AFlasher:
                 cmd = [str(self.tool_path), '-w', str(temp_path)]
                 
                 log.info(f"Writing chip with ch341prog: {' '.join(cmd)}")
-                log.warning("⚠️  This will overwrite your BIOS chip!")
+                log.warning("[WARN] This will overwrite your BIOS chip!")
                 
                 result = subprocess.run(
                     cmd,
@@ -213,7 +214,7 @@ class CH341AFlasher:
                     temp_path.unlink()
                 
                 if result.returncode == 0:
-                    log.info("✓ Chip write successful")
+                    log.info("[OK] Chip write successful")
                     
                     # Manual verify if requested
                     if verify:
@@ -249,7 +250,7 @@ class CH341AFlasher:
                 cmd = ['flashrom', '-p', 'ch341a_spi', '-E']
                 
                 log.info("Erasing chip with flashrom")
-                log.warning("⚠️  This will erase your entire BIOS chip!")
+                log.warning("[WARN] This will erase your entire BIOS chip!")
                 
                 result = subprocess.run(
                     cmd,
@@ -259,7 +260,7 @@ class CH341AFlasher:
                 )
                 
                 if result.returncode == 0:
-                    log.info("✓ Chip erased")
+                    log.info("[OK] Chip erased")
                     return True
                 else:
                     log.error(f"Erase failed: {result.stderr}")
@@ -293,7 +294,7 @@ class CH341AFlasher:
             True if verification successful
         """
         try:
-            verify_path = Path('/tmp/g5cia_ch341a_verify.bin')
+            verify_path = Path(tempfile.gettempdir()) / 'g5cia_ch341a_verify.bin'
             
             if self.read_chip(verify_path):
                 verify_data = verify_path.read_bytes()
@@ -302,13 +303,13 @@ class CH341AFlasher:
                 verify_path.unlink()
                 
                 if verify_data == original_data:
-                    log.info("✓ Write verification successful")
+                    log.info("[OK] Write verification successful")
                     return True
                 else:
-                    log.error("✗ Write verification failed - data mismatch")
+                    log.error("[FAIL] Write verification failed - data mismatch")
                     return False
             else:
-                log.error("✗ Verification read failed")
+                log.error("[FAIL] Verification read failed")
                 return False
         
         except Exception as e:

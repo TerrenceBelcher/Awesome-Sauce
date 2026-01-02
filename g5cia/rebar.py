@@ -131,7 +131,7 @@ class ReBarInjector:
         patcher.data = data  # Use same bytearray
         patcher.recalc_fv_checksum(dxe_vol.offset)
         
-        log.info("✓ ReBAR driver injected successfully")
+        log.info("[OK] ReBAR driver injected successfully")
         return True
 
 

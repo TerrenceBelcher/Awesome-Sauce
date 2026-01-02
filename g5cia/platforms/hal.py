@@ -53,12 +53,12 @@ class PlatformInfo:
         
         if pl1 and pl1 > self.vrm_sustained:
             warnings.append(
-                f"⚠️  PL1 {pl1}W exceeds {self.name} VRM sustained spec ({self.vrm_sustained}W)"
+                f"[WARN] PL1 {pl1}W exceeds {self.name} VRM sustained spec ({self.vrm_sustained}W)"
             )
         
         if pl2 and pl2 > self.vrm_burst:
             warnings.append(
-                f"⚠️  PL2 {pl2}W exceeds {self.name} VRM burst spec ({self.vrm_burst}W)"
+                f"[WARN] PL2 {pl2}W exceeds {self.name} VRM burst spec ({self.vrm_burst}W)"
             )
         
         if pl1 and pl1 > self.vrm_max_safe:
@@ -151,13 +151,13 @@ class HAL:
         
         # Check feature support
         if config.get('resizable_bar') and not platform.supports_rebar:
-            warnings.append(f"⚠️  {platform.name} may not support Resizable BAR")
+            warnings.append(f"[WARN] {platform.name} may not support Resizable BAR")
         
         if config.get('above_4g') and not platform.supports_above_4g:
-            warnings.append(f"⚠️  {platform.name} may not support Above 4G Decoding")
+            warnings.append(f"[WARN] {platform.name} may not support Above 4G Decoding")
         
         if config.get('me_disable') and not platform.supports_me_disable:
-            warnings.append(f"⚠️  {platform.name} may not support ME disable")
+            warnings.append(f"[WARN] {platform.name} may not support ME disable")
         
         return warnings
     

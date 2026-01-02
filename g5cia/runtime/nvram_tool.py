@@ -190,13 +190,13 @@ class NVRAMUnlocker:
                 verify_data = self.nvram.read_variable("Setup", self.SETUP_GUID)
                 
                 if verify_data and verify_data == bytes(modified_data):
-                    log.info("✓ NVRAM unlock successful and verified")
+                    log.info("[OK] NVRAM unlock successful and verified")
                     results.append(('Verification', True, 'Write verified successfully'))
                 else:
-                    log.warning("⚠ NVRAM write may have failed - verification mismatch")
+                    log.warning("[WARN] NVRAM write may have failed - verification mismatch")
                     results.append(('Verification', False, 'Write verification failed'))
             else:
-                log.error("✗ Failed to write Setup to NVRAM")
+                log.error("[FAIL] Failed to write Setup to NVRAM")
                 results.append(('NVRAM Write', False, 'Write operation failed'))
         
         return results
@@ -297,7 +297,7 @@ class NVRAMUnlocker:
             backup_data = backup_path.read_bytes()
             
             if self.nvram.write_variable("Setup", self.SETUP_GUID, backup_data):
-                log.info(f"✓ Restored Setup from {backup_path}")
+                log.info(f"[OK] Restored Setup from {backup_path}")
                 return True
             else:
                 log.error("Failed to restore Setup")

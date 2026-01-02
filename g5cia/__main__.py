@@ -3,6 +3,8 @@
 import sys
 import argparse
 import logging
+import tempfile
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -40,7 +42,7 @@ def cmd_nvram_backup(args) -> int:
         return 1
     
     if nvram.backup_setup(args.backup_file):
-        logging.info(f"✓ Setup backed up to {args.backup_file}")
+        logging.info(f"[OK] Setup backed up to {args.backup_file}")
         return 0
     else:
         return 1
@@ -54,7 +56,7 @@ def cmd_nvram_restore(args) -> int:
         return 1
     
     if nvram.restore_setup(args.restore_file):
-        logging.info(f"✓ Setup restored from {args.restore_file}")
+        logging.info(f"[OK] Setup restored from {args.restore_file}")
         return 0
     else:
         return 1
@@ -81,7 +83,7 @@ def cmd_nvram_unlock(args) -> int:
     
     success_count = 0
     for setting_name, success, message in results:
-        status = "✓" if success else "✗"
+        status = "[OK]" if success else "[FAIL]"
         print(f"{status} {setting_name:25s} {message}")
         if success:
             success_count += 1
@@ -91,7 +93,7 @@ def cmd_nvram_unlock(args) -> int:
     print("="*70 + "\n")
     
     if not dry:
-        print("⚠️  IMPORTANT: Reboot for changes to take effect")
+        print("[!] IMPORTANT: Reboot for changes to take effect")
         print("    To restore: CMOS clear or use --nv-restore")
     
     return 0 if success_count > 0 else 1
@@ -204,7 +206,7 @@ def cmd_patch_bios(args) -> int:
         logo_data = engine.logo_mgr.generate_solid_color(1024, 768, color)
         
         # Save temp file and replace
-        temp_logo = '/tmp/g5cia_logo.bmp'
+        temp_logo = os.path.join(tempfile.gettempdir(), 'g5cia_logo.bmp')
         Path(temp_logo).write_bytes(logo_data)
         
         engine.logo_mgr.scan()
@@ -222,7 +224,7 @@ def cmd_patch_bios(args) -> int:
         c1, c2 = GRADIENTS[grad_name]
         logo_data = engine.logo_mgr.generate_gradient(1024, 768, c1, c2)
         
-        temp_logo = '/tmp/g5cia_logo.bmp'
+        temp_logo = os.path.join(tempfile.gettempdir(), 'g5cia_logo.bmp')
         Path(temp_logo).write_bytes(logo_data)
         
         engine.logo_mgr.scan()
@@ -256,7 +258,7 @@ def cmd_patch_bios(args) -> int:
     if args.rpt:
         engine.print_summary()
     
-    logging.info(f"\n✓ Success! Modded BIOS saved to: {output_path}\n")
+    logging.info(f"\n[OK] Success! Modded BIOS saved to: {output_path}\n")
     
     # Flash if requested
     if args.flash:
@@ -283,11 +285,11 @@ def cmd_patch_bios(args) -> int:
         modded_data = Path(output_path).read_bytes()
         
         if flasher.flash(modded_data, verify=True):
-            logging.info("✓ Flash operation completed successfully!")
-            logging.info("⚠️  Reboot your system to apply changes")
+            logging.info("[OK] Flash operation completed successfully!")
+            logging.info("[!] Reboot your system to apply changes")
             return 0
         else:
-            logging.error("✗ Flash operation failed")
+            logging.error("[FAIL] Flash operation failed")
             return 1
     
     return 0

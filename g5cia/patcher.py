@@ -315,7 +315,7 @@ class Patcher:
             lines.append(f"   Offset: 0x{patch.offset:08X}")
             lines.append(f"   Before: {patch.old_data.hex().upper()}")
             lines.append(f"   After:  {patch.new_data.hex().upper()}")
-            lines.append(f"   Applied: {'✓' if patch.applied else '✗'}")
+            lines.append(f"   Applied: {'[OK]' if patch.applied else '[FAIL]'}")
             lines.append("")
         
         lines.append(f"{'='*70}\n")

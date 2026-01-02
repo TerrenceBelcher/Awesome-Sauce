@@ -82,13 +82,13 @@ class FlashDetector:
         print("="*70)
         
         if not self.available_tools:
-            print("✗ No flash tools detected")
+            print("[FAIL] No flash tools detected")
             print("\nTo enable flashing:")
             print("  - Intel FPT: Download from Intel ME System Tools")
             print("  - AMI AFU: Download from motherboard manufacturer")
             print("  - CH341A: Install 'flashrom' or 'ch341prog' and connect programmer")
         else:
-            print(f"✓ Detected {len(self.available_tools)} flash tool(s):\n")
+            print(f"[OK] Detected {len(self.available_tools)} flash tool(s):\n")
             
             for name, tool in self.available_tools:
                 print(f"  [{name.upper()}]")

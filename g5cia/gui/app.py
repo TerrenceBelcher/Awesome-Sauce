@@ -4,6 +4,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext, colorchooser
 import logging
 import threading
+import tempfile
+import os
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -326,7 +328,7 @@ class G5CIAGUI:
                   command=self._apply_image).grid(row=5, column=0, sticky=tk.W, pady=(10, 0))
         
         if not PIL_AVAILABLE:
-            ttk.Label(image_frame, text="⚠️  Install Pillow for image preview:\npip install Pillow",
+            ttk.Label(image_frame, text="[!] Install Pillow for image preview:\npip install Pillow",
                      foreground='orange').grid(row=6, column=0, sticky=tk.W, pady=(10, 0))
         
         # Initial preview
@@ -495,14 +497,14 @@ class G5CIAGUI:
                     logging.info(f"Applying {self.boot_logo_type} boot logo...")
                     try:
                         # Save logo to temporary file
-                        temp_logo = '/tmp/g5cia_gui_logo.bmp'
+                        temp_logo = os.path.join(tempfile.gettempdir(), 'g5cia_gui_logo.bmp')
                         Path(temp_logo).write_bytes(self.boot_logo_data)
                         
                         # Scan for logos and replace first one
                         engine.logo_mgr.scan()
                         if engine.logo_mgr.logos:
                             if engine.logo_mgr.replace(engine.data, 0, temp_logo):
-                                logging.info(f"✓ Boot logo replaced successfully")
+                                logging.info(f"[OK] Boot logo replaced successfully")
                             else:
                                 logging.warning("Failed to replace boot logo")
                         else:
@@ -516,7 +518,7 @@ class G5CIAGUI:
                 
                 engine.print_summary()
                 
-                logging.info(f"✓ Success! Modded BIOS saved to: {self.output_file}")
+                logging.info(f"[OK] Success! Modded BIOS saved to: {self.output_file}")
                 
                 # Flash if requested
                 if self.flash_after_patch_var.get():
@@ -534,7 +536,7 @@ class G5CIAGUI:
     def _flash_bios(self, bios_file: str):
         """Flash BIOS file."""
         response = messagebox.askyesno("Confirm Flash",
-            "⚠️  WARNING ⚠️\n\n"
+            "[!] WARNING [!]\n\n"
             "This will modify your system BIOS!\n\n"
             "Ensure you have:\n"
             "- A working backup\n"
@@ -557,7 +559,7 @@ class G5CIAGUI:
             if flasher.flash(data, verify=True):
                 messagebox.showinfo("Success", 
                     "Flash completed successfully!\n\n"
-                    "⚠️  REBOOT REQUIRED to apply changes")
+                    "[!] REBOOT REQUIRED to apply changes")
             else:
                 messagebox.showerror("Error", "Flash operation failed")
         
@@ -581,13 +583,13 @@ class G5CIAGUI:
                 
                 msg = f"NVRAM Unlock Results:\n\n"
                 for name, ok, message in results:
-                    status = "✓" if ok else "✗"
+                    status = "[OK]" if ok else "[FAIL]"
                     msg += f"{status} {name}: {message}\n"
                 
                 msg += f"\nSuccessful: {success}/{len(results)}"
                 
                 if success > 0:
-                    msg += "\n\n⚠️  Reboot required for changes to take effect"
+                    msg += "\n\n[!] Reboot required for changes to take effect"
                     messagebox.showinfo("NVRAM Unlock", msg)
                 else:
                     messagebox.showerror("NVRAM Unlock Failed", msg)
@@ -635,7 +637,7 @@ class G5CIAGUI:
                     if nvram.restore_setup(filename):
                         messagebox.showinfo("Success", 
                             "Setup restored successfully!\n\n"
-                            "⚠️  Reboot recommended")
+                            "[!] Reboot recommended")
                     else:
                         messagebox.showerror("Error", "Failed to restore Setup")
                 except Exception as e:
@@ -803,7 +805,7 @@ class G5CIAGUI:
                         # Check size limits (typical BIOS logo slot is ~1-2MB)
                         max_size = 2 * 1024 * 1024  # 2MB
                         if file_size > max_size:
-                            self.image_warning_var.set("⚠️  Warning: Image may be too large for BIOS!")
+                            self.image_warning_var.set("[!] Warning: Image may be too large for BIOS!")
                         else:
                             self.image_warning_var.set("")
                         

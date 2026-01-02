@@ -176,9 +176,9 @@ class SecurityAnalyzer:
             log.warning("Flash Descriptor is locked - may need external programmer")
         
         if self.status.safe_to_flash:
-            log.info("✓ No critical security blocks detected - safe to flash with caution")
+            log.info("[OK] No critical security blocks detected - safe to flash with caution")
         else:
-            log.error("✗ CRITICAL security blocks detected - DO NOT FLASH!")
+            log.error("[FAIL] CRITICAL security blocks detected - DO NOT FLASH!")
 
 
 def extract_cpuid_from_microcode(data: bytes, offset: int) -> Optional[int]:

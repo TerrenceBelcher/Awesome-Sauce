@@ -369,7 +369,7 @@ class ACPIPatcher:
         self.bios_data[pos:pos + len(ssdt_data)] = ssdt_data
         
         log.info(f"Injected SSDT at 0x{pos:x} ({len(ssdt_data)} bytes)")
-        log.warning("⚠️  RSDT/XSDT not updated - manual pointer update required")
+        log.warning("[WARN] RSDT/XSDT not updated - manual pointer update required")
         
         return True
     

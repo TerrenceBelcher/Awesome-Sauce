@@ -250,7 +250,7 @@ def print_nvram_report() -> None:
     print("NVRAM ACCESS REPORT")
     print("="*70)
     print(f"Platform: {nvram.platform}")
-    print(f"NVRAM Access: {'✓ Available' if nvram.can_access else '✗ Not available'}")
+    print(f"NVRAM Access: {'[OK] Available' if nvram.can_access else '[FAIL] Not available'}")
     
     if not nvram.can_access:
         if nvram.platform == 'win32':

@@ -125,7 +125,7 @@ class Flasher:
             return False
         
         log.warning("="*70)
-        log.warning("⚠️  BIOS FLASH OPERATION")
+        log.warning("[WARN] BIOS FLASH OPERATION")
         log.warning("="*70)
         log.warning("This will modify your BIOS firmware.")
         log.warning("Ensure you have a working backup before proceeding.")
@@ -153,9 +153,9 @@ class Flasher:
                 success = self.tool.verify()
         
         if success:
-            log.info("✓ Flash operation completed successfully")
+            log.info("[OK] Flash operation completed successfully")
         else:
-            log.error("✗ Flash operation failed")
+            log.error("[FAIL] Flash operation failed")
         
         return success
     
