@@ -1,0 +1,4 @@
+# G5 CIA Ultimate - Dell G5 5090 BIOS Modding Toolkit
+# No external dependencies required for core functionality
+# Optional dependencies for advanced features:
+# Pillow>=10.0.0  # For advanced logo manipulation (PNG/JPEG handling)
