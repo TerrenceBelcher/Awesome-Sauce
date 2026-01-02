@@ -197,7 +197,7 @@ class NVRAMAccess:
             process_handle = kernel32.GetCurrentProcess()
             
             # Open process token
-            token_handle = wintypes.HANDLE()
+            token_handle = wintypes.HANDLE(0)
             try:
                 if not advapi32.OpenProcessToken(
                     process_handle,
@@ -241,7 +241,7 @@ class NVRAMAccess:
                 # Check for ERROR_NOT_ALL_ASSIGNED
                 error = kernel32.GetLastError()
                 if error == ERROR_NOT_ALL_ASSIGNED:
-                    log.error("SeSystemEnvironmentPrivilege not available for this user")
+                    log.error("Token does not hold SeSystemEnvironmentPrivilege")
                     return False
                 
                 log.debug("Successfully enabled SeSystemEnvironmentPrivilege")
