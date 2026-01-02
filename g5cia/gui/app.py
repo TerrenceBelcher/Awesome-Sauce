@@ -490,6 +490,26 @@ class G5CIAGUI:
                 if engine.parser.setup_offset:
                     engine.apply_config(config)
                 
+                # Apply custom boot logo if generated
+                if self.boot_logo_data and self.boot_logo_type != 'none':
+                    logging.info(f"Applying {self.boot_logo_type} boot logo...")
+                    try:
+                        # Save logo to temporary file
+                        temp_logo = '/tmp/g5cia_gui_logo.bmp'
+                        Path(temp_logo).write_bytes(self.boot_logo_data)
+                        
+                        # Scan for logos and replace first one
+                        engine.logo_mgr.scan()
+                        if engine.logo_mgr.logos:
+                            if engine.logo_mgr.replace(engine.data, 0, temp_logo):
+                                logging.info(f"✓ Boot logo replaced successfully")
+                            else:
+                                logging.warning("Failed to replace boot logo")
+                        else:
+                            logging.warning("No logos found in BIOS to replace")
+                    except Exception as e:
+                        logging.error(f"Logo replacement error: {e}")
+                
                 if not engine.save(self.output_file):
                     messagebox.showerror("Error", "Failed to save modded BIOS")
                     return
