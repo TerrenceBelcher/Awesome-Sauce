@@ -198,15 +198,16 @@ class NVRAMAccess:
             
             # Open process token
             token_handle = wintypes.HANDLE()
-            if not advapi32.OpenProcessToken(
-                process_handle,
-                TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-                ctypes.byref(token_handle)
-            ):
-                log.error("Failed to open process token")
-                return False
-            
             try:
+                if not advapi32.OpenProcessToken(
+                    process_handle,
+                    TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+                    ctypes.byref(token_handle)
+                ):
+                    error_code = kernel32.GetLastError()
+                    log.error(f"Failed to open process token (error {error_code})")
+                    return False
+                
                 # Lookup privilege LUID
                 luid = LUID()
                 if not advapi32.LookupPrivilegeValueW(
@@ -214,7 +215,8 @@ class NVRAMAccess:
                     "SeSystemEnvironmentPrivilege",
                     ctypes.byref(luid)
                 ):
-                    log.error("Failed to lookup privilege value")
+                    error_code = kernel32.GetLastError()
+                    log.error(f"Failed to lookup privilege value (error {error_code})")
                     return False
                 
                 # Prepare TOKEN_PRIVILEGES structure
@@ -232,7 +234,8 @@ class NVRAMAccess:
                     None,
                     None
                 ):
-                    log.error("Failed to adjust token privileges")
+                    error_code = kernel32.GetLastError()
+                    log.error(f"Failed to adjust token privileges (error {error_code})")
                     return False
                 
                 # Check for ERROR_NOT_ALL_ASSIGNED
@@ -245,8 +248,9 @@ class NVRAMAccess:
                 return True
             
             finally:
-                # Close token handle
-                kernel32.CloseHandle(token_handle)
+                # Close token handle if it was opened
+                if token_handle.value:
+                    kernel32.CloseHandle(token_handle)
         
         except Exception as e:
             log.error(f"Exception enabling privilege: {e}")
