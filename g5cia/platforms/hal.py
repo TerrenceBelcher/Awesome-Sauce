@@ -63,12 +63,12 @@ class PlatformInfo:
         
         if pl1 and pl1 > self.vrm_max_safe:
             warnings.append(
-                f"🔥 PL1 {pl1}W exceeds absolute safe maximum ({self.vrm_max_safe}W) - VRM damage risk!"
+                f"[!!!] PL1 {pl1}W exceeds absolute safe maximum ({self.vrm_max_safe}W) - VRM damage risk!"
             )
         
         if pl2 and pl2 > self.vrm_max_safe + 20:
             warnings.append(
-                f"🔥 PL2 {pl2}W is dangerously high - VRM damage risk!"
+                f"[!!!] PL2 {pl2}W is dangerously high - VRM damage risk!"
             )
         
         return warnings
