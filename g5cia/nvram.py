@@ -197,7 +197,7 @@ class NVRAMAccess:
             process_handle = kernel32.GetCurrentProcess()
             
             # Open process token
-            token_handle = wintypes.HANDLE()
+            token_handle = wintypes.HANDLE(0)
             try:
                 if not advapi32.OpenProcessToken(
                     process_handle,
