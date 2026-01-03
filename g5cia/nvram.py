@@ -43,7 +43,7 @@ class NVRAMAccess:
         
         Args:
             name: Variable name (e.g., "Setup")
-            guid: Variable GUID
+            guid: Variable GUID (without braces)
         
         Returns:
             Variable data or None if not found
@@ -65,7 +65,7 @@ class NVRAMAccess:
         
         Args:
             name: Variable name
-            guid: Variable GUID
+            guid: Variable GUID (without braces)
             data: Variable data
             attributes: EFI variable attributes (default: BS|RT|NV)
         
@@ -90,6 +90,8 @@ class NVRAMAccess:
         since the initial size query (call with size=0) is unreliable and
         returns ERROR_INSUFFICIENT_BUFFER (122) on many systems,
         including the user's Dell G5, where the Setup variable is > 4KB.
+        
+        ERROR 87 FIX: The GUID must be passed with braces in registry format.
         """
         try:
             import ctypes
@@ -99,12 +101,6 @@ class NVRAMAccess:
             if not self._enable_privilege():
                 log.error("Failed to enable SeSystemEnvironmentPrivilege")
                 return None
-            
-            # Convert name to wide string
-            var_name = name
-            
-            # Parse GUID
-            # guid_bytes = self._parse_guid(guid) # This line seems unused and can be removed
             
             # Call GetFirmwareEnvironmentVariableW
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -118,13 +114,16 @@ class NVRAMAccess:
                 wintypes.DWORD
             ]
             
+            # Format GUID with braces for Windows API
+            guid_formatted = self._parse_guid(guid)
+            
             # Set a large, safe buffer size (16KB)
             SAFE_BUFFER_SIZE = 16384
             buffer = ctypes.create_string_buffer(SAFE_BUFFER_SIZE)
             
             # Directly attempt to read the variable into the large buffer
             size = kernel32.GetFirmwareEnvironmentVariableW(
-                var_name, guid, buffer, SAFE_BUFFER_SIZE
+                name, guid_formatted, buffer, SAFE_BUFFER_SIZE
             )
             
             error_code = ctypes.get_last_error()
@@ -137,6 +136,10 @@ class NVRAMAccess:
                 # 122 (ERROR_INSUFFICIENT_BUFFER)
                 elif error_code == 122:
                     log.error(f"Failed to read variable {name}: Variable is larger than {SAFE_BUFFER_SIZE} bytes.")
+                    return None
+                # 87 (ERROR_INVALID_PARAMETER)
+                elif error_code == 87:
+                    log.error(f"Failed to read variable {name}: Invalid parameter (check GUID format: {guid_formatted})")
                     return None
                 else:
                     log.error(f"Failed to read variable {name} (error {error_code})")
@@ -160,8 +163,6 @@ class NVRAMAccess:
                 log.error("Failed to enable SeSystemEnvironmentPrivilege")
                 return False
             
-            var_name = name
-            
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
             
             # Define SetFirmwareEnvironmentVariableW
@@ -173,14 +174,19 @@ class NVRAMAccess:
                 wintypes.DWORD
             ]
             
-            # NOTE: The arguments for SetFirmwareEnvironmentVariableW should include the attributes.
-            # The current function call below is missing the attributes argument.
-            # However, for minimum change, we are keeping the existing arguments for now.
+            # Format GUID with braces for Windows API
+            guid_formatted = self._parse_guid(guid)
+            
             result = kernel32.SetFirmwareEnvironmentVariableW(
-                var_name, guid, data, len(data)
+                name, guid_formatted, data, len(data)
             )
             
-            return result != 0
+            if result == 0:
+                error_code = ctypes.get_last_error()
+                log.error(f"Failed to write variable {name} (error {error_code})")
+                return False
+            
+            return True
         
         except Exception as e:
             log.error(f"Windows NVRAM write error: {e}")
@@ -372,9 +378,17 @@ class NVRAMAccess:
             return False
     
     def _parse_guid(self, guid: str) -> str:
-        """Parse GUID string for Windows API."""
-        # Windows expects GUID in registry format
-        return '{' + guid + '}'
+        """Parse GUID string for Windows API.
+        
+        Windows expects GUID in registry format with braces.
+        Handles input with or without braces.
+        """
+        guid = guid.strip()
+        if not guid.startswith('{'):
+            guid = '{' + guid
+        if not guid.endswith('}'):
+            guid = guid + '}'
+        return guid
     
     def backup_setup(self, backup_path: str) -> bool:
         """Backup Setup variable to file."""
