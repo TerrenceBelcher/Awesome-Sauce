@@ -53,11 +53,33 @@ class NVRAMAccess:
             return None
         
         if self.platform == 'win32':
-            return self._read_windows(name, guid)
+            data, _ = self._read_windows_with_attrs(name, guid)
+            return data
         elif self.platform.startswith('linux'):
             return self._read_linux(name, guid)
         
         return None
+    
+    def read_variable_with_attributes(self, name: str, guid: str) -> Optional[tuple]:
+        """Read EFI variable with its attributes.
+        
+        Args:
+            name: Variable name
+            guid: Variable GUID
+        
+        Returns:
+            Tuple of (data, attributes) or (None, None) if not found
+        """
+        if not self.can_access:
+            log.error("No NVRAM access - need admin/root privileges")
+            return None, None
+        
+        if self.platform == 'win32':
+            return self._read_windows_with_attrs(name, guid)
+        elif self.platform.startswith('linux'):
+            return self._read_linux_with_attrs(name, guid)
+        
+        return None, None
     
     def write_variable(self, name: str, guid: str, data: bytes, 
                        attributes: int = 0x07) -> bool:
@@ -77,11 +99,134 @@ class NVRAMAccess:
             return False
         
         if self.platform == 'win32':
-            return self._write_windows(name, guid, data, attributes)
+            # Try direct write first
+            if self._write_windows(name, guid, data, attributes):
+                return True
+            
+            # If direct write fails, try delete-then-recreate method
+            log.warning("Direct write failed, attempting delete-then-recreate method")
+            if self._delete_and_recreate_windows(name, guid, data, attributes):
+                return True
+            
+            return False
+            
         elif self.platform.startswith('linux'):
             return self._write_linux(name, guid, data, attributes)
         
         return False
+    
+    def _delete_and_recreate_windows(self, name: str, guid: str, data: bytes, 
+                                     attributes: int) -> bool:
+        """Try to delete variable then recreate it (workaround for some UEFI implementations)."""
+        try:
+            import ctypes
+            from ctypes import wintypes
+            
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            guid_formatted = self._parse_guid(guid)
+            
+            # Step 1: Delete the variable (write with size=0)
+            log.debug(f"Attempting to delete variable {name}")
+            
+            # Try Ex version first
+            try:
+                kernel32.SetFirmwareEnvironmentVariableExW.restype = wintypes.BOOL
+                kernel32.SetFirmwareEnvironmentVariableExW.argtypes = [
+                    wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.LPVOID, 
+                    wintypes.DWORD, wintypes.DWORD
+                ]
+                
+                result = kernel32.SetFirmwareEnvironmentVariableExW(
+                    name, guid_formatted, None, 0, attributes
+                )
+                
+                if result == 0:
+                    # Try standard version
+                    kernel32.SetFirmwareEnvironmentVariableW.restype = wintypes.BOOL
+                    kernel32.SetFirmwareEnvironmentVariableW.argtypes = [
+                        wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.LPVOID, wintypes.DWORD
+                    ]
+                    
+                    result = kernel32.SetFirmwareEnvironmentVariableW(
+                        name, guid_formatted, None, 0
+                    )
+            except (AttributeError, OSError):
+                # Ex version not available, use standard
+                kernel32.SetFirmwareEnvironmentVariableW.restype = wintypes.BOOL
+                kernel32.SetFirmwareEnvironmentVariableW.argtypes = [
+                    wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.LPVOID, wintypes.DWORD
+                ]
+                
+                result = kernel32.SetFirmwareEnvironmentVariableW(
+                    name, guid_formatted, None, 0
+                )
+            
+            if result == 0:
+                error_code = ctypes.get_last_error()
+                log.debug(f"Delete failed (error {error_code}), this might be expected")
+            else:
+                log.debug(f"Variable {name} deleted successfully")
+            
+            # Step 2: Recreate with new data
+            import time
+            time.sleep(0.1)  # Brief pause
+            
+            log.debug(f"Attempting to recreate variable {name} with new data")
+            return self._write_windows(name, guid, data, attributes)
+            
+        except Exception as e:
+            log.error(f"Delete-and-recreate error: {e}")
+            return False
+    
+    def _read_windows_with_attrs(self, name: str, guid: str) -> tuple:
+        """Read EFI variable with attributes on Windows.
+        
+        Returns:
+            Tuple of (data, attributes) or (None, None) if not found
+        """
+        try:
+            import ctypes
+            from ctypes import wintypes
+            
+            if not self._enable_privilege():
+                log.error("Failed to enable SeSystemEnvironmentPrivilege")
+                return None, None
+            
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            guid_formatted = self._parse_guid(guid)
+            
+            # Try GetFirmwareEnvironmentVariableExW first (returns attributes)
+            try:
+                kernel32.GetFirmwareEnvironmentVariableExW.restype = wintypes.DWORD
+                kernel32.GetFirmwareEnvironmentVariableExW.argtypes = [
+                    wintypes.LPCWSTR,
+                    wintypes.LPCWSTR,
+                    wintypes.LPVOID,
+                    wintypes.DWORD,
+                    ctypes.POINTER(wintypes.DWORD)
+                ]
+                
+                SAFE_BUFFER_SIZE = 16384
+                buffer = ctypes.create_string_buffer(SAFE_BUFFER_SIZE)
+                attrs = wintypes.DWORD(0)
+                
+                size = kernel32.GetFirmwareEnvironmentVariableExW(
+                    name, guid_formatted, buffer, SAFE_BUFFER_SIZE, ctypes.byref(attrs)
+                )
+                
+                if size > 0:
+                    log.debug(f"Read variable {name} with attributes 0x{attrs.value:02x}")
+                    return buffer.raw[:size], attrs.value
+                    
+            except (AttributeError, OSError) as e:
+                log.debug(f"GetFirmwareEnvironmentVariableExW not available, using standard read")
+            
+            # Fallback to standard read (no attributes)
+            return self._read_windows(name, guid), 0x07
+            
+        except Exception as e:
+            log.error(f"Windows NVRAM read with attrs error: {e}")
+            return None, None
     
     def _read_windows(self, name: str, guid: str) -> Optional[bytes]:
         """Read EFI variable on Windows using kernel32.
@@ -371,6 +516,25 @@ class NVRAMAccess:
             log.error(f"Exception enabling privilege: {e}")
             return False
     
+    def _read_linux_with_attrs(self, name: str, guid: str) -> tuple:
+        """Read EFI variable with attributes on Linux."""
+        try:
+            var_path = Path(f'/sys/firmware/efi/efivars/{name}-{guid}')
+            
+            if not var_path.exists():
+                log.debug(f"Variable {name} not found")
+                return None, None
+            
+            data = var_path.read_bytes()
+            
+            # First 4 bytes are attributes
+            attributes = struct.unpack('<I', data[:4])[0]
+            return data[4:], attributes
+        
+        except Exception as e:
+            log.error(f"Linux NVRAM read with attrs error: {e}")
+            return None, None
+    
     def _read_linux(self, name: str, guid: str) -> Optional[bytes]:
         """Read EFI variable on Linux using efivarfs."""
         try:
@@ -430,27 +594,32 @@ class NVRAMAccess:
         return guid
     
     def backup_setup(self, backup_path: str) -> bool:
-        """Backup Setup variable to file."""
-        # Setup GUID (common)
+        """Backup Setup variable to file with attributes."""
         setup_guid = "EC87D643-EBA4-4BB5-A1E5-3F3E36B20DA9"
         
-        data = self.read_variable("Setup", setup_guid)
+        data, attributes = self.read_variable_with_attributes("Setup", setup_guid)
         if not data:
             log.error("Failed to read Setup variable")
             return False
         
-        Path(backup_path).write_bytes(data)
-        log.info(f"Setup backed up to {backup_path} ({len(data)} bytes)")
+        # Store attributes in first 4 bytes, then data
+        backup_data = struct.pack('<I', attributes) + data
+        Path(backup_path).write_bytes(backup_data)
+        log.info(f"Setup backed up to {backup_path} ({len(data)} bytes, attrs=0x{attributes:02x})")
         return True
     
     def restore_setup(self, backup_path: str) -> bool:
-        """Restore Setup variable from file."""
+        """Restore Setup variable from file with original attributes."""
         setup_guid = "EC87D643-EBA4-4BB5-A1E5-3F3E36B20DA9"
         
-        data = Path(backup_path).read_bytes()
+        backup_data = Path(backup_path).read_bytes()
         
-        if self.write_variable("Setup", setup_guid, data):
-            log.info(f"Setup restored from {backup_path}")
+        # Extract attributes and data
+        attributes = struct.unpack('<I', backup_data[:4])[0]
+        data = backup_data[4:]
+        
+        if self.write_variable("Setup", setup_guid, data, attributes):
+            log.info(f"Setup restored from {backup_path} (attrs=0x{attributes:02x})")
             return True
         else:
             log.error("Failed to restore Setup variable")
