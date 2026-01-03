@@ -154,7 +154,13 @@ class NVRAMAccess:
     
     def _write_windows(self, name: str, guid: str, data: bytes, 
                        attributes: int) -> bool:
-        """Write EFI variable on Windows."""
+        """Write EFI variable on Windows.
+        
+        NOTE: Windows uses SetFirmwareEnvironmentVariableExW for writing with attributes.
+        The regular SetFirmwareEnvironmentVariableW doesn't support setting attributes.
+        
+        CRITICAL: Must create a C buffer from Python bytes object for proper memory handling.
+        """
         try:
             import ctypes
             from ctypes import wintypes
@@ -165,20 +171,52 @@ class NVRAMAccess:
             
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
             
-            # Define SetFirmwareEnvironmentVariableW
-            kernel32.SetFirmwareEnvironmentVariableW.restype = wintypes.BOOL
-            kernel32.SetFirmwareEnvironmentVariableW.argtypes = [
-                wintypes.LPCWSTR,
-                wintypes.LPCWSTR,
-                ctypes.c_void_p,
-                wintypes.DWORD
-            ]
-            
-            # Format GUID with braces for Windows API
+            # Format GUID with braces for Windows API (needed for both functions)
             guid_formatted = self._parse_guid(guid)
             
+            # Create C buffer from Python bytes - CRITICAL for proper memory handling
+            data_buffer = ctypes.create_string_buffer(data, len(data))
+            
+            # Try SetFirmwareEnvironmentVariableExW first (supports attributes)
+            try:
+                kernel32.SetFirmwareEnvironmentVariableExW.restype = wintypes.BOOL
+                kernel32.SetFirmwareEnvironmentVariableExW.argtypes = [
+                    wintypes.LPCWSTR,  # lpName
+                    wintypes.LPCWSTR,  # lpGuid
+                    wintypes.LPVOID,   # pValue
+                    wintypes.DWORD,    # nSize
+                    wintypes.DWORD     # dwAttributes
+                ]
+                
+                # Call with attributes, passing C buffer
+                result = kernel32.SetFirmwareEnvironmentVariableExW(
+                    name, guid_formatted, data_buffer, len(data), attributes
+                )
+                
+                if result != 0:
+                    log.debug(f"Successfully wrote variable {name} using SetFirmwareEnvironmentVariableExW")
+                    return True
+                else:
+                    error_code = ctypes.get_last_error()
+                    log.debug(f"SetFirmwareEnvironmentVariableExW failed (error {error_code}), trying fallback")
+                    # Fall through to try non-Ex version
+                    
+            except (AttributeError, OSError) as e:
+                # SetFirmwareEnvironmentVariableExW not available, fall through
+                log.debug(f"SetFirmwareEnvironmentVariableExW not available ({e}), trying regular version")
+            
+            # Fall back to regular SetFirmwareEnvironmentVariableW (no attributes parameter)
+            kernel32.SetFirmwareEnvironmentVariableW.restype = wintypes.BOOL
+            kernel32.SetFirmwareEnvironmentVariableW.argtypes = [
+                wintypes.LPCWSTR,  # lpName
+                wintypes.LPCWSTR,  # lpGuid
+                wintypes.LPVOID,   # pValue
+                wintypes.DWORD     # nSize (NO attributes parameter)
+            ]
+            
+            # Call WITHOUT attributes parameter, passing C buffer
             result = kernel32.SetFirmwareEnvironmentVariableW(
-                name, guid_formatted, data, len(data)
+                name, guid_formatted, data_buffer, len(data)
             )
             
             if result == 0:
@@ -186,6 +224,7 @@ class NVRAMAccess:
                 log.error(f"Failed to write variable {name} (error {error_code})")
                 return False
             
+            log.debug(f"Successfully wrote variable {name} using SetFirmwareEnvironmentVariableW")
             return True
         
         except Exception as e:
