@@ -101,7 +101,16 @@ class NVRAMAccess:
             guid_bytes = self._parse_guid(guid)
             
             # Call GetFirmwareEnvironmentVariableW
-            kernel32 = ctypes.windll.kernel32
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            
+            # Define GetFirmwareEnvironmentVariableW
+            kernel32.GetFirmwareEnvironmentVariableW.restype = wintypes.DWORD
+            kernel32.GetFirmwareEnvironmentVariableW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.LPCWSTR,
+                ctypes.c_void_p,
+                wintypes.DWORD
+            ]
             
             # First call to get size
             size = kernel32.GetFirmwareEnvironmentVariableW(
@@ -133,6 +142,7 @@ class NVRAMAccess:
         """Write EFI variable on Windows."""
         try:
             import ctypes
+            from ctypes import wintypes
             
             if not self._enable_privilege():
                 log.error("Failed to enable SeSystemEnvironmentPrivilege")
@@ -140,7 +150,17 @@ class NVRAMAccess:
             
             var_name = name
             
-            kernel32 = ctypes.windll.kernel32
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            
+            # Define SetFirmwareEnvironmentVariableW
+            kernel32.SetFirmwareEnvironmentVariableW.restype = wintypes.BOOL
+            kernel32.SetFirmwareEnvironmentVariableW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.LPCWSTR,
+                ctypes.c_void_p,
+                wintypes.DWORD
+            ]
+            
             result = kernel32.SetFirmwareEnvironmentVariableW(
                 var_name, guid, data, len(data)
             )
@@ -155,7 +175,7 @@ class NVRAMAccess:
         """Enable SeSystemEnvironmentPrivilege on Windows."""
         try:
             import ctypes
-            from ctypes import wintypes
+            from ctypes import wintypes, byref
             
             # Check if user is admin first
             if ctypes.windll.shell32.IsUserAnAdmin() == 0:
@@ -189,9 +209,44 @@ class NVRAMAccess:
                     ("Privileges", LUID_AND_ATTRIBUTES * 1),
                 ]
             
-            # Get API functions
-            kernel32 = ctypes.windll.kernel32
-            advapi32 = ctypes.windll.advapi32
+            # Get API functions with proper error handling
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+            
+            # Define GetCurrentProcess
+            kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+            kernel32.GetCurrentProcess.argtypes = []
+            
+            # Define OpenProcessToken
+            advapi32.OpenProcessToken.restype = wintypes.BOOL
+            advapi32.OpenProcessToken.argtypes = [
+                wintypes.HANDLE,
+                wintypes.DWORD,
+                ctypes.POINTER(wintypes.HANDLE)
+            ]
+            
+            # Define LookupPrivilegeValueW
+            advapi32.LookupPrivilegeValueW.restype = wintypes.BOOL
+            advapi32.LookupPrivilegeValueW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.LPCWSTR,
+                ctypes.POINTER(LUID)
+            ]
+            
+            # Define AdjustTokenPrivileges
+            advapi32.AdjustTokenPrivileges.restype = wintypes.BOOL
+            advapi32.AdjustTokenPrivileges.argtypes = [
+                wintypes.HANDLE,
+                wintypes.BOOL,
+                ctypes.POINTER(TOKEN_PRIVILEGES),
+                wintypes.DWORD,
+                ctypes.POINTER(TOKEN_PRIVILEGES),
+                ctypes.POINTER(wintypes.DWORD)
+            ]
+            
+            # Define CloseHandle
+            kernel32.CloseHandle.restype = wintypes.BOOL
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
             
             # Get current process pseudo-handle
             process_handle = kernel32.GetCurrentProcess()
@@ -202,9 +257,9 @@ class NVRAMAccess:
                 if not advapi32.OpenProcessToken(
                     process_handle,
                     TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-                    ctypes.byref(token_handle)
+                    byref(token_handle)
                 ):
-                    error_code = kernel32.GetLastError()
+                    error_code = ctypes.get_last_error()
                     log.error(f"Failed to open process token (error {error_code})")
                     return False
                 
@@ -213,9 +268,9 @@ class NVRAMAccess:
                 if not advapi32.LookupPrivilegeValueW(
                     None,
                     "SeSystemEnvironmentPrivilege",
-                    ctypes.byref(luid)
+                    byref(luid)
                 ):
-                    error_code = kernel32.GetLastError()
+                    error_code = ctypes.get_last_error()
                     log.error(f"Failed to lookup privilege value (error {error_code})")
                     return False
                 
@@ -229,19 +284,19 @@ class NVRAMAccess:
                 if not advapi32.AdjustTokenPrivileges(
                     token_handle,
                     False,
-                    ctypes.byref(tp),
+                    byref(tp),
                     ctypes.sizeof(tp),
                     None,
                     None
                 ):
-                    error_code = kernel32.GetLastError()
+                    error_code = ctypes.get_last_error()
                     log.error(f"Failed to adjust token privileges (error {error_code})")
                     return False
                 
                 # Check for ERROR_NOT_ALL_ASSIGNED even when AdjustTokenPrivileges succeeds
                 # This is required by Windows API - the function returns TRUE but sets this error
                 # when the token doesn't have the privilege
-                error = kernel32.GetLastError()
+                error = ctypes.get_last_error()
                 if error == ERROR_NOT_ALL_ASSIGNED:
                     log.error("Token does not hold SeSystemEnvironmentPrivilege")
                     return False
