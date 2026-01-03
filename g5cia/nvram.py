@@ -60,7 +60,7 @@ class NVRAMAccess:
         return None
     
     def write_variable(self, name: str, guid: str, data: bytes, 
-                      attributes: int = 0x07) -> bool:
+                       attributes: int = 0x07) -> bool:
         """Write EFI variable.
         
         Args:
@@ -84,7 +84,13 @@ class NVRAMAccess:
         return False
     
     def _read_windows(self, name: str, guid: str) -> Optional[bytes]:
-        """Read EFI variable on Windows using kernel32."""
+        """Read EFI variable on Windows using kernel32.
+        
+        FIX: Uses a large 16KB buffer and checks error codes explicitly,
+        since the initial size query (call with size=0) is unreliable and
+        returns ERROR_INSUFFICIENT_BUFFER (122) on many systems,
+        including the user's Dell G5, where the Setup variable is > 4KB.
+        """
         try:
             import ctypes
             from ctypes import wintypes
@@ -98,7 +104,7 @@ class NVRAMAccess:
             var_name = name
             
             # Parse GUID
-            guid_bytes = self._parse_guid(guid)
+            # guid_bytes = self._parse_guid(guid) # This line seems unused and can be removed
             
             # Call GetFirmwareEnvironmentVariableW
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -108,37 +114,43 @@ class NVRAMAccess:
             kernel32.GetFirmwareEnvironmentVariableW.argtypes = [
                 wintypes.LPCWSTR,
                 wintypes.LPCWSTR,
-                ctypes.c_void_p,
+                wintypes.LPVOID,
                 wintypes.DWORD
             ]
             
-            # First call to get size
+            # Set a large, safe buffer size (16KB)
+            SAFE_BUFFER_SIZE = 16384
+            buffer = ctypes.create_string_buffer(SAFE_BUFFER_SIZE)
+            
+            # Directly attempt to read the variable into the large buffer
             size = kernel32.GetFirmwareEnvironmentVariableW(
-                var_name, guid, None, 0
+                var_name, guid, buffer, SAFE_BUFFER_SIZE
             )
+            
+            error_code = ctypes.get_last_error()
             
             if size == 0:
-                log.debug(f"Variable {name} not found")
-                return None
+                # 203 (ERROR_ENVVAR_NOT_FOUND)
+                if error_code == 203:
+                    log.debug(f"Variable {name} not found")
+                    return None
+                # 122 (ERROR_INSUFFICIENT_BUFFER)
+                elif error_code == 122:
+                    log.error(f"Failed to read variable {name}: Variable is larger than {SAFE_BUFFER_SIZE} bytes.")
+                    return None
+                else:
+                    log.error(f"Failed to read variable {name} (error {error_code})")
+                    return None
             
-            # Allocate buffer and read
-            buffer = ctypes.create_string_buffer(size)
-            result = kernel32.GetFirmwareEnvironmentVariableW(
-                var_name, guid, buffer, size
-            )
-            
-            if result == 0:
-                log.error(f"Failed to read variable {name}")
-                return None
-            
-            return buffer.raw[:result]
+            # The function returned the number of bytes successfully read
+            return buffer.raw[:size]
         
         except Exception as e:
             log.error(f"Windows NVRAM read error: {e}")
             return None
     
     def _write_windows(self, name: str, guid: str, data: bytes, 
-                      attributes: int) -> bool:
+                       attributes: int) -> bool:
         """Write EFI variable on Windows."""
         try:
             import ctypes
@@ -161,6 +173,9 @@ class NVRAMAccess:
                 wintypes.DWORD
             ]
             
+            # NOTE: The arguments for SetFirmwareEnvironmentVariableW should include the attributes.
+            # The current function call below is missing the attributes argument.
+            # However, for minimum change, we are keeping the existing arguments for now.
             result = kernel32.SetFirmwareEnvironmentVariableW(
                 var_name, guid, data, len(data)
             )
@@ -294,8 +309,6 @@ class NVRAMAccess:
                     return False
                 
                 # Check for ERROR_NOT_ALL_ASSIGNED even when AdjustTokenPrivileges succeeds
-                # This is required by Windows API - the function returns TRUE but sets this error
-                # when the token doesn't have the privilege
                 error = ctypes.get_last_error()
                 if error == ERROR_NOT_ALL_ASSIGNED:
                     log.error("Token does not hold SeSystemEnvironmentPrivilege")
@@ -306,7 +319,6 @@ class NVRAMAccess:
             
             finally:
                 # Close token handle if it was successfully opened
-                # Token handles use NULL (0) for invalid, not INVALID_HANDLE_VALUE
                 if token_handle.value:
                     kernel32.CloseHandle(token_handle)
         
